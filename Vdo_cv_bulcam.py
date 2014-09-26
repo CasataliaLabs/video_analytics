@@ -6,7 +6,6 @@
 
 
 import cv2
-from repeated_timer_video_plot import RepeatedTimer
 from Tkinter import *
 import numpy
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -14,9 +13,9 @@ from matplotlib.figure import Figure
 from tkintertable.Tables import TableCanvas
 from tkintertable.TableModels import TableModel
 #================================Functions==================================================
-def video():
+def video(Gray_1):
 
-    global Gray_1 
+    #global Gray_1 
     ret, frame = cap.read()
     #axis.imshow(frame)
     frameHandle.set_array(frame)
@@ -53,7 +52,7 @@ cap = cv2.VideoCapture()
 cap.open("http://192.168.1.104/video.cgi?.mjpeg")
 frame1 = cap.read()[1]
 Gray_1 = cv2.cvtColor(frame1, cv2.COLOR_BGR2GRAY)
-t = RepeatedTimer(0.01,video)
+#t = RepeatedTimer(0.01,video)
 Values = [0 for x in range(100)]
 #===========================================================================================
 
@@ -67,6 +66,10 @@ frameHandle = axis.imshow(frame1)
 canvas = FigureCanvasTkAgg(f, master=root)
 canvas.get_tk_widget().place(x=10,y=30)
 canvas.show()
+
+t = f.canvas.new_timer(interval=10)
+t.add_callback(video, Gray_1)
+
 
 frame2 = Frame(root)
 frame2.place(x=20,y=300)
