@@ -18,11 +18,11 @@ def video():
 
     global Gray_1 
     ret, frame = cap.read()
-    axis.imshow(frame)
-
+    #axis.imshow(frame)
+    frameHandle.set_array(frame)
+    
     #Sreeja S N - 18-Sep-2014 - Changed canvas show to canvas draw
     canvas.draw()
-
     Gray_2 = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     Difference = abs(Gray_2 - Gray_1)
     Mean_value = numpy.mean(Difference)
@@ -51,7 +51,8 @@ def video_stop():
 #================================Main Program===============================================
 cap = cv2.VideoCapture()
 cap.open("http://192.168.1.104/video.cgi?.mjpeg")
-Gray_1 = cv2.cvtColor(cap.read()[1], cv2.COLOR_BGR2GRAY)
+frame1 = cap.read()[1]
+Gray_1 = cv2.cvtColor(frame1, cv2.COLOR_BGR2GRAY)
 t = RepeatedTimer(0.01,video)
 Values = [0 for x in range(100)]
 #===========================================================================================
@@ -62,6 +63,7 @@ root.geometry('1000x700')
 
 f = Figure(figsize=(4,4), dpi=50)
 axis = f.add_subplot(111)
+frameHandle = axis.imshow(frame1)
 canvas = FigureCanvasTkAgg(f, master=root)
 canvas.get_tk_widget().place(x=10,y=30)
 canvas.show()
