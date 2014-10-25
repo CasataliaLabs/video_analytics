@@ -40,12 +40,25 @@ class Motion(HumanActivityInterface):
 		# the HOG detector returns slightly larger rectangles than the real objects.
 		# so we slightly shrink the rectangles to get a nicer output.
 			pad_w, pad_h = int(0.15*w), int(0.05*h)
-			cv2.rectangle(img, (x+pad_w, y+pad_h), (x+w-pad_w, y+h-pad_h), (255, 255, 255), thickness)
-	def findPeople(self,img):
-		#~ hog = cv2.HOGDescriptor()
-		#~ hog.setSVMDetector( cv2.HOGDescriptor_getDefaultPeopleDetector() )
-		found, w = self.hog.detectMultiScale(img, winStride=(8,8), padding=(32,32), scale=1.05)
-		print "In found",len(found)
+			cv2.rectangle(img, (x+pad_w, y+pad_h), (x+w-pad_w, y+h-pad_h), (0, 255, 0), thickness)
+	def findPeople(self,frm,cnt):
+		img=frm
+		x,y,w,h = cv2.boundingRect(cnt)
+		xMax = x + w
+		yMax = y + h
+		
+		# We can set a rectanle if we want to detect the moving objects
+		#~ cv2.rectangle(frm,(x,y),(xMax,yMax),(0,255,0),3)
+		#~ plt.imshow(frm)
+		
+		self.img = frm[y:yMax,x:xMax]
+		self.img = np.resize(self.img,(200,200))
+		#~ self.img = np.asarray(self.img.round(),dtype=np.uint8)
+		
+		found, w = self.hog.detectMultiScale(self.img, winStride=(8,8), padding=(32,32), scale=1.05)
+		
+		if len(found) > 0:
+			print "In found",len(found)
 		found_filtered = []
 
 		for ri, r in enumerate(found):
@@ -106,11 +119,11 @@ class Motion(HumanActivityInterface):
 		
 			differenceFrame = self.calculateDifference(grayFrame)
 			self.backgroundFrame = self.calculateBackground(grayFrame)
-			#~ self.thresholdingAndContour(differenceFrame,frame)
-			#~ self.showData(tic)
+			self.thresholdingAndContour(differenceFrame,frame)
+			self.showData(tic)
 			
-			differenceFrame = np.asarray(differenceFrame.round(),dtype=np.uint8)
-			self.findPeople(differenceFrame)
+			#~ differenceFrame = np.asarray(differenceFrame.round(),dtype=np.uint8)
+			#~ self.findPeople(differenceFrame)
 			
 			#~ print "Total Time:-",time.time() - tic
 		else:
@@ -168,6 +181,7 @@ class Motion(HumanActivityInterface):
 		#~ background = ((1-coefficient) * self.backgroundFrame) + (coefficient * grayFrame)
 		return background
 
+	
 	def thresholdingAndContour(self,diffFrame,frame):
 		#~ tic = time.time()
 		if self.zoneArea != None:
@@ -199,17 +213,24 @@ class Motion(HumanActivityInterface):
 				
 		thresholdedFrame  = cv2.inRange(diffFrame,np.array(10), np.array(50))
 		contours, hierarchy = cv2.findContours(thresholdedFrame,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
-		self.c = contours
+		#~ self.c = contours
+		
 		if len(contours) > 0: 
 			areas = [cv2.contourArea(c) for c in contours]
 			index = np.argmax(areas)
 			contourMaxArea = contours[index]
+			
+			self.findPeople(frame,contours[index])
+			
 			self.contourMaxArea=cv2.contourArea(contourMaxArea)
 			cv2.drawContours(frame, [contourMaxArea], 0 , (0,0,0), 3)
-			
 			self.countourImageHandler.set_array(frame)
 			self.countourCanvas.draw()
 			
+			
+			
+			# This area saves the event. This needs to be added as a different thread and rewrite the code in order to catch 
+			# continuous events that differentiates as different events.
 			if max(areas) >= (self.frameArea/4):
 				self.count += 1
 				if self.count > 20:
@@ -224,7 +245,9 @@ class Motion(HumanActivityInterface):
 					self.bufferImages = []
 					del(videowriter)
 		#~ print "ThresholdTime----:-",time.time() - tic							
-				
+		
+		
+		
 if __name__ == "__main__":
 	root = Tk()
 	h= Motion(root)
