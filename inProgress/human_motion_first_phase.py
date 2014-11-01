@@ -18,6 +18,7 @@ class Motion(HumanActivityInterface):
 		self.bufferImages = []
 		self.device = "http://192.168.1.104/asp/video.cgi?.mjpeg"
 		#~ self.device = "http:admin@//192.168.1.105/snapshot.cgi"
+		#~ self.device=0
 		self.timer.add_callback(self.eventDetection)
 		self.buttonTrain.bind("<Key>",self.trainZone)
 		self.zoneArea = None
@@ -29,6 +30,10 @@ class Motion(HumanActivityInterface):
 		self.doorExit='UP' # Set UP , DOWN, LEFT , RIGHT according to the position of the door with respect to the camera
 		self.hog = cv2.HOGDescriptor()
 		self.hog.setSVMDetector( cv2.HOGDescriptor_getDefaultPeopleDetector() )
+		
+		self.frameCount=0
+		self.meanList=[]
+		self.previousFrame = None
 
 	#Human Motion detection ------------------------------------------------------------------------------------
 	def inside(self,r, q):
@@ -40,25 +45,25 @@ class Motion(HumanActivityInterface):
 		# the HOG detector returns slightly larger rectangles than the real objects.
 		# so we slightly shrink the rectangles to get a nicer output.
 			pad_w, pad_h = int(0.15*w), int(0.05*h)
-			cv2.rectangle(img, (x+pad_w, y+pad_h), (x+w-pad_w, y+h-pad_h), (0, 255, 0), thickness)
-	def findPeople(self,frm,cnt):
+			cv2.rectangle(img, (x+pad_w, y+pad_h), (x+w-pad_w, y+h-pad_h), (255, 255, 255), thickness)
+	def findPeople(self,frm):
 		img=frm
-		x,y,w,h = cv2.boundingRect(cnt)
-		xMax = x + w
-		yMax = y + h
+		#~ x,y,w,h = cv2.boundingRect(cnt)
+		#~ xMax = x + w
+		#~ yMax = y + h
 		
 		# We can set a rectanle if we want to detect the moving objects
 		#~ cv2.rectangle(frm,(x,y),(xMax,yMax),(0,255,0),3)
 		#~ plt.imshow(frm)
 		
-		self.img = frm[y:yMax,x:xMax]
-		self.img = np.resize(self.img,(200,200))
-		#~ self.img = np.asarray(self.img.round(),dtype=np.uint8)
+		#~ self.img = frm[y:yMax,x:xMax]
+		#~ self.img = np.resize(self.img,(200,200))
+		img = np.asarray(img.round(),dtype=np.uint8)
 		
-		found, w = self.hog.detectMultiScale(self.img, winStride=(8,8), padding=(32,32), scale=1.05)
+		found, w = self.hog.detectMultiScale(img, winStride=(8,8), padding=(32,32), scale=1.05)
 		
-		if len(found) > 0:
-			print "In found",len(found)
+		#~ if len(found) > 0:
+			#~ print "In found",len(found)
 		found_filtered = []
 
 		for ri, r in enumerate(found):
@@ -107,23 +112,42 @@ class Motion(HumanActivityInterface):
 	def setImageHandlers(self,grayFrame):
 		if self.cap.isOpened():
 			self.countourImageHandler = self.countourAxis.imshow(grayFrame,self.color)
-			self.videoImageHandler = self.videoAxis.imshow(grayFrame,self.color,vmin=0,vmax= 20)
-			#~ self.videoImageHandler = self.videoAxis.imshow(grayFrame,self.color)
+			#~ self.videoImageHandler = self.videoAxis.imshow(grayFrame,self.color,vmin=0,vmax= 20)
+			self.videoImageHandler = self.videoAxis.imshow(grayFrame,self.color)
 	
 	# Detect Events
 	def eventDetection(self):
 		tic = time.time()
 		frame,grayFrame = self.readFrames()
 		self.grayFrame = grayFrame
+
 		if len(frame) > 0:
+			self.frameCount += 1
+			if self.backgroundFrame == None:
+				self.backgroundFrame = grayFrame
+				self.previousFrame = grayFrame
 		
 			differenceFrame = self.calculateDifference(grayFrame)
-			self.backgroundFrame = self.calculateBackground(grayFrame)
-			self.thresholdingAndContour(differenceFrame,frame)
-			self.showData(tic)
 			
-			#~ differenceFrame = np.asarray(differenceFrame.round(),dtype=np.uint8)
-			#~ self.findPeople(differenceFrame)
+			if self.frameCount < 31:
+					d = abs(np.subtract(grayFrame,self.previousFrame)).mean()
+					self.meanList.append(d)
+			else:
+				if max(self.meanList) > 46:
+					print "Calculating here",max(self.meanList)	
+					self.backgroundFrame = self.calculateBackground(grayFrame)
+					
+					self.meanList = []
+					self.frameCount = 0
+			self.previousFrame = grayFrame
+				
+			#~ self.thresholdingAndContour(differenceFrame,frame)
+			#~ self.showData(tic)
+			self.countourImageHandler.set_array(self.backgroundFrame)
+			self.countourCanvas.draw()
+
+			differenceFrame = np.asarray(differenceFrame.round(),dtype=np.uint8)
+			self.findPeople(differenceFrame)
 			
 			#~ print "Total Time:-",time.time() - tic
 		else:
@@ -167,9 +191,9 @@ class Motion(HumanActivityInterface):
 			return [],[]
 		
 	def calculateDifference(self,grayFrame):
-		
-		if self.backgroundFrame == None:
-			self.backgroundFrame = grayFrame
+		#~ 
+		#~ if self.backgroundFrame == None:
+			#~ self.backgroundFrame = grayFrame
 		differenceFrame = abs(np.subtract(grayFrame,self.backgroundFrame))
 		#~ differenceFrame = abs(grayFrame - self.backgroundFrame)
 		
@@ -185,10 +209,12 @@ class Motion(HumanActivityInterface):
 	def thresholdingAndContour(self,diffFrame,frame):
 		#~ tic = time.time()
 		if self.zoneArea != None:
+				# These variables can be set as variables of the class
 				colMin = np.min(self.zoneArea[:,0])
 				colMax = np.max(self.zoneArea[:,0])
 				rowMin = np.min(self.zoneArea[:,1])
 				rowMax = np.max(self.zoneArea[:,1])
+				
 				self.croppedFrame = frame[rowMin:rowMax,colMin:colMax]
 				croppedGrayFrame = cv2.cvtColor(h.croppedFrame,cv2.COLOR_BGR2GRAY)
 				
@@ -220,7 +246,7 @@ class Motion(HumanActivityInterface):
 			index = np.argmax(areas)
 			contourMaxArea = contours[index]
 			
-			self.findPeople(frame,contours[index])
+			#~ self.findPeople(frame,contours[index])
 			
 			self.contourMaxArea=cv2.contourArea(contourMaxArea)
 			cv2.drawContours(frame, [contourMaxArea], 0 , (0,0,0), 3)
