@@ -1,0 +1,2 @@
+http://192.168.0.20/video.cgi cam1
+http://192.168.0.26/snapshot.cgi cam2
